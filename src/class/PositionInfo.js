@@ -2,7 +2,7 @@
 export default class PositionInfo {
     figi;
     ticker;
-    isi;
+    isin;
     instrumentType;
     balance;
     blocked;
@@ -51,6 +51,6 @@ export default class PositionInfo {
     }
 
     fixedFloatnum(num) {
-        return Math.round(num * 100) / 100
+        return Math.round(num * 100) / 100;
     }
 }
