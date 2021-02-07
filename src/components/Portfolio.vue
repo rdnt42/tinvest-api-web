@@ -1,24 +1,52 @@
 <template>
   <div class="hello">
-    <div>Text</div>
-    <b-form-input v-model="url" placeholder="Ticket"></b-form-input>
-    <b-button variant="primary" prevent @click="getValueByUrl"
-    >Get value by ticket
-    </b-button
-    >
-    <br/>
-    <h3>Курс Usd {{ usdCurrency }} RUB</h3>
-    <h3>Текущая стоимость портфеля {{ totalPortfolioCost}}
-      <a href="#" @click.stop="nextCurrencyType">{{ fullCostCurrencyType }}</a>*</h3>
-    <h5>*При продаже из валюты позиции</h5>
+
+    <b-row>
+      <b-col cols="4">
+        <b-form-input v-model="url" placeholder="With Tinkoff token"></b-form-input>
+      </b-col>
+      <b-col cols="2">
+        <b-button variant="primary" prevent @click="getValueByUrl"
+        >Get JSON by URL
+        </b-button>
+      </b-col>
+    </b-row>
+
     <br/>
 
-<!--    <b-form-select-->
-<!--        id="sel-cur-type"-->
-<!--        class="mb-2 mr-sm-2 mb-sm-0"-->
-<!--        :options="[{ text: 'Конвертация', value: null }, 'One', 'Two', 'Three']"-->
-<!--        :value="null"-->
-<!--    ></b-form-select>-->
+    <b-container>
+      <h3>Курс Usd {{ usdCurrency }} RUB, покупка {{usdCurrencySell}} RUB</h3>
+      <b-row class="justify-content-md-center">
+        <b-col col lg="6">
+          <h3>Текущая стоимость портфеля {{ totalPortfolioCost }}</h3>
+        </b-col>
+        <b-col col lg="1">
+          <h3><a href="#" @click.stop="nextCurrencyType">{{ fullCostCurrencyType }}</a>*</h3>
+        </b-col>
+      </b-row>
+      <h5>*При продаже из валюты позиции</h5>
+    </b-container>
+
+    <br/>
+
+    <b-form-group
+        class="col-sm-5"
+        id="fieldset-horizontal"
+        label-cols-sm="6"
+        label="Валюта для конвертации доходности"
+        label-for="inp-curr-type"
+    >
+      <b-form-select
+          class="col-sm-6"
+          id="inp-curr-type"
+          v-model="positionCurrencyConvertType"
+          :options="currenciesTypes"
+          @change="getConvertedCurrencyValues"
+      ></b-form-select>
+    </b-form-group>
+
+
+    <br/>
 
     <b-table :items="positions" :fields="fields"></b-table>
   </div>
@@ -39,7 +67,7 @@ const URL_TINKOFF_CURRENCIES = "https://www.tinkoff.ru/api/v1/currency_rates/";
 //   "USD": ["$", "USD", "USD000UTSTOM", "EUR_RUB__TOM"]
 // };
 
-let currencies = ["RUB", "EUR", "USD",];
+let CURRENCIES_TYPES = ["RUB", "EUR", "USD",];
 let rates = {
   "RUB": {USD: 0.0, EUR: 0.0},
   "EUR": {USD: 0.0, RUB: 0.0},
@@ -54,12 +82,14 @@ export default {
   },
   data() {
     return {
+      currenciesTypes: CURRENCIES_TYPES,
       positions: [],
       totalPortfolioCost: 0.0,
       usdCurrency: 0.0,
+      usdCurrencySell: 0.0,
       url: "",
-      fullCostCurrencyType: currencies[0],
-      positionCurrencyConvertType: null,
+      fullCostCurrencyType: CURRENCIES_TYPES[0],
+      positionCurrencyConvertType: CURRENCIES_TYPES[0],
       fields: [
         {key: "name", label: "Имя", sortable: true},
         {key: "ticker", label: "Тикер", sortable: true},
@@ -79,8 +109,8 @@ export default {
           sortable: true,
         },
         {
-          key: "expectedYieldCurrRub",
-          label: "Доходность RUB",
+          key: "expectedYieldCurrConvert",
+          label: "Доходность в валюте",
           sortable: true,
         },
         {key: "balance", label: "Количество", sortable: true},
@@ -101,7 +131,7 @@ export default {
       })
           .then((response) => {
             this.positions = this.encodeInfo(response);
-            this.getConvertedValues();
+            this.getConvertedCurrencyValues();
           })
           .catch((error) => {
             console.log(error);
@@ -149,6 +179,7 @@ export default {
 
             if (rates.USD.RUB > 0.0) {
               rates.RUB.USD = 1 / rates.USD.RUB;
+              this.usdCurrencySell = rates.USD.RUB;
             }
           })
           .catch((error) => {
@@ -182,7 +213,7 @@ export default {
       let positions = response.data.payload.positions;
 
       positions.forEach((element) => {
-        let position = new PositionInfo(element, this.usdCurrency);
+        let position = new PositionInfo(element);
 
         results.push(position);
       });
@@ -190,10 +221,16 @@ export default {
       return results;
     },
 
-    getConvertedValues() {
+    getConvertedCurrencyValues() {
       let tempCost = 0.0;
       this.positions.forEach((position => {
-        tempCost += this.convertCurrency(position.fullCost, position.averagePositionPriceCurr, this.fullCostCurrencyType);
+        let convertFullVal = this.convertCurrency(position.fullCost, position.averagePositionPriceCurr,
+            this.fullCostCurrencyType);
+        tempCost += convertFullVal;
+
+        let convertPositionVal = this.convertCurrency(position.expectedYieldValue, position.averagePositionPriceCurr,
+            this.positionCurrencyConvertType)
+        position.expectedYieldCurrConvert = convertPositionVal;
       }))
 
       this.totalPortfolioCost = this.fixedFloatNum(tempCost);
@@ -214,18 +251,18 @@ export default {
     },
 
     nextCurrencyType() {
-      let index = currencies.indexOf(this.fullCostCurrencyType);
+      let index = CURRENCIES_TYPES.indexOf(this.fullCostCurrencyType);
       if (index === undefined) {
         return;
       }
 
       index++;
-      if (index >= currencies.length) {
+      if (index >= CURRENCIES_TYPES.length) {
         index = 0;
       }
-      this.fullCostCurrencyType = currencies[index];
+      this.fullCostCurrencyType = CURRENCIES_TYPES[index];
 
-      this.getConvertedValues();
+      this.getConvertedCurrencyValues();
     },
 
     convertCurrency(value, fromType, toType) {
@@ -233,7 +270,7 @@ export default {
         return value;
       }
 
-      return value * rates[fromType][toType];
+      return this.fixedFloatNum(value * rates[fromType][toType]);
     },
 
     fixedFloatNum(num) {
