@@ -12,12 +12,12 @@
 ![](https://github.com/rdnt42/tinvest-api-web/blob/master/examples/portfolio.jpg)
 
 ## Как запустить?
-Для запуска нужен установленный [Node js](https://nodejs.org/en/)  
+- Для запуска нужен установленный [Node js](https://nodejs.org/en/)  
 
-И токен, который можно получить [в личном кабинете](https://tinkoffcreditsystems.github.io/invest-openapi/auth/) и там же отозвать.  
+- И токен, который можно получить [в личном кабинете](https://tinkoffcreditsystems.github.io/invest-openapi/auth/) и там же отозвать.  
 В приложении токен используется только для запроса портфолио и больше никуда не отправляется.  
 
-В корневой папке проекта нужно добавить файл локальноего окружения .env.local и добавить в него переменную VUE_APP_SECRET_TOKEN=ваш_токен  
+- В корневой папке проекта нужно добавить файл локальноего окружения .env.local и добавить в него переменную VUE_APP_SECRET_TOKEN=ваш_токен  
 
 Этот файл игнорурется гитом.
 
