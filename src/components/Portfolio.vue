@@ -1,21 +1,21 @@
 <template>
   <div class="hello">
-
-    <b-row>
-      <b-col cols="4">
-        <b-form-input v-model="url" placeholder="With Tinkoff token"></b-form-input>
-      </b-col>
-      <b-col cols="2">
-        <b-button variant="primary" prevent @click="getValueByUrl"
-        >Get JSON by URL
-        </b-button>
-      </b-col>
-    </b-row>
+    <!-- only for debug -->
+    <!--    <b-row class="my-2">-->
+    <!--      <b-col cols="4">-->
+    <!--        <b-form-input v-model="url" placeholder="With Tinkoff token"></b-form-input>-->
+    <!--      </b-col>-->
+    <!--      <b-col cols="2">-->
+    <!--        <b-button variant="primary" prevent @click="getValueByUrl"-->
+    <!--        >Get JSON by URL-->
+    <!--        </b-button>-->
+    <!--      </b-col>-->
+    <!--    </b-row>-->
 
     <br/>
 
     <b-container>
-      <h3>Курс Usd {{ usdCurrency }} RUB, покупка {{usdCurrencySell}} RUB</h3>
+      <h3>Курс Usd {{ usdCurrency }} RUB, покупка {{ usdCurrencySell }} RUB</h3>
       <b-row class="justify-content-md-center">
         <b-col col lg="6">
           <h3>Текущая стоимость портфеля {{ totalPortfolioCost }}</h3>
@@ -25,30 +25,45 @@
         </b-col>
       </b-row>
       <h5>*При продаже из валюты позиции</h5>
+      <b-row class="justify-content-md-center">
+        <h3>За всё время {{ totalYield }} {{positionCurrencyConvertType}}</h3>
+      </b-row>
     </b-container>
 
     <br/>
 
-    <b-form-group
-        class="col-sm-5"
-        id="fieldset-horizontal"
-        label-cols-sm="6"
-        label="Валюта для конвертации доходности"
-        label-for="inp-curr-type"
-    >
-      <b-form-select
-          class="col-sm-6"
-          id="inp-curr-type"
-          v-model="positionCurrencyConvertType"
-          :options="currenciesTypes"
-          @change="getConvertedCurrencyValues"
-      ></b-form-select>
-    </b-form-group>
+    <b-row class="my-2">
+      <b-col xl="3" md="4">
+        <label>Валюта для конвертации доходности</label>
+      </b-col>
+      <b-col xl="1" md="2">
+        <b-form-select
+            id="inp-curr-type"
+            v-model="positionCurrencyConvertType"
+            :options="currenciesTypes"
+            @change="getConvertedCurrencyValues"
+        ></b-form-select>
+      </b-col>
+    </b-row>
+
+    <b-row class="my-2">
+      <b-col xl="3" md="4">
+        <b-form-checkbox
+            id="check-port"
+            v-model="isShowFullInfo"
+            name="check-port"
+            @change="getVisibleFields"
+        >
+          Показать полную информацию
+        </b-form-checkbox>
+      </b-col>
+
+    </b-row>
 
 
     <br/>
 
-    <b-table :items="positions" :fields="fields"></b-table>
+    <b-table :items="positions" :fields="visibleFields" bordered></b-table>
   </div>
 </template>
 
@@ -58,7 +73,8 @@ import axios from "axios";
 
 const PORTFOLIO_DELAY = 5000;
 const USD_CURRENCY_DELAY = 60 * 60 * 1000;
-const URL_MOEX_CURRENCIES = "http://iss.moex.com/iss/engines/currency/markets/selt/boards/CETS/securities.json?iss.only=marketdata&marketdata.columns=SECID,LAST";
+const URL_MOEX_CURRENCIES = "http://iss.moex.com/iss/engines/currency/markets/selt/boards" +
+    "/CETS/securities.json?iss.only=marketdata&marketdata.columns=SECID,LAST";
 const URL_TINKOFF_CURRENCIES = "https://www.tinkoff.ru/api/v1/currency_rates/";
 
 // let currencies = {
@@ -75,6 +91,8 @@ let rates = {
   "GBP": {EUR: 0.0, RUB: 0.0}
 };
 
+const fieldsVisibleKeys = ["balance", "averagePositionPriceCurr",];
+
 export default {
   name: "Portfolio",
   props: {
@@ -85,22 +103,29 @@ export default {
       currenciesTypes: CURRENCIES_TYPES,
       positions: [],
       totalPortfolioCost: 0.0,
+      totalYield: 0.0,
       usdCurrency: 0.0,
       usdCurrencySell: 0.0,
       url: "",
       fullCostCurrencyType: CURRENCIES_TYPES[0],
       positionCurrencyConvertType: CURRENCIES_TYPES[0],
+      isShowFullInfo: false,
       fields: [
-        {key: "name", label: "Имя", sortable: true},
-        {key: "ticker", label: "Тикер", sortable: true},
+        {key: "name", label: "Имя", sortable: true, visible: true},
+        {key: "ticker", label: "Тикер", sortable: true, visible: true},
         {
           key: "averagePositionPriceValue",
-          label: "Текущая стоимость",
+          label: "На момент покупки",
+          sortable: true,
+        },
+        {
+          key: "balance",
+          label: "Количество",
           sortable: true,
         },
         {
           key: "fullCost",
-          label: "Полная стоимость",
+          label: "Стоимость в портфеле",
           sortable: true,
         },
         {
@@ -113,13 +138,18 @@ export default {
           label: "Доходность в валюте",
           sortable: true,
         },
-        {key: "balance", label: "Количество", sortable: true},
+        {
+          key: "expectedYieldPercent",
+          label: "Доходность, %",
+          sortable: true,
+        },
         {
           key: "averagePositionPriceCurr",
           label: "Валюта",
           sortable: true,
         },
       ],
+      visibleFields: [],
     };
   },
   methods: {
@@ -145,7 +175,7 @@ export default {
         headers: {Authorization: "Bearer " + process.env.VUE_APP_SECRET_TOKEN},
       })
           .then((response) => {
-            console.log("Ticker", response.data.payload);
+            console.log("getValueByUrl", response.data.payload);
           })
           .catch((error) => {
             console.log(error);
@@ -223,6 +253,7 @@ export default {
 
     getConvertedCurrencyValues() {
       let tempCost = 0.0;
+      let tempYield = 0.0;
       this.positions.forEach((position => {
         let convertFullVal = this.convertCurrency(position.fullCost, position.averagePositionPriceCurr,
             this.fullCostCurrencyType);
@@ -231,9 +262,12 @@ export default {
         let convertPositionVal = this.convertCurrency(position.expectedYieldValue, position.averagePositionPriceCurr,
             this.positionCurrencyConvertType)
         position.expectedYieldCurrConvert = convertPositionVal;
+        tempYield += convertPositionVal;
       }))
 
       this.totalPortfolioCost = this.fixedFloatNum(tempCost);
+      this.totalYield = this.fixedFloatNum(tempYield);
+
     },
 
     getData() {
@@ -275,6 +309,16 @@ export default {
 
     fixedFloatNum(num) {
       return Math.round(num * 100) / 100;
+    },
+
+    getVisibleFields() {
+      this.visibleFields = this.fields.filter(field => {
+        let isInclude = fieldsVisibleKeys.includes(field.key);
+        let isVisible = (isInclude && this.isShowFullInfo) || !isInclude;
+
+        return isVisible;
+      })
+
     }
   },
 
@@ -282,9 +326,11 @@ export default {
     this.getPortfolio();
     this.getRatesCurrencyTinkoff();
     this.getUsdCurrencyMoex();
+    this.getVisibleFields()
 
     this.getData();
   },
+
 };
 </script>
 
