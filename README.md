@@ -1,4 +1,4 @@
-# tinvest-api-web
+# tinvest-api-web (не поддерживается)
 # Version 0.2
 
 ## Что это за проект?
